@@ -205,11 +205,19 @@ get_testimony (struct accused *a, struct law *l)
   unsigned int logs_pos = 0;	// Position in logs
   /* Convert sizes in number of physical blocks */
   {
-    if (-1 == ioctl (a->fd, FIGETBSZ, &physbsize))
+    int figetbsz_arg;
+    if (-1 == ioctl (a->fd, FIGETBSZ, &figetbsz_arg))
       {
 	error (0, errno, "%s: FIGETBSZ() failed", a->name);
 	return -1;
       }
+    if (figetbsz_arg <= 0)
+      {
+	error (0, 0, "%s: FIGETBSZ() is buggy and returned %i",
+	       a->name, figetbsz_arg);
+	return -1;
+      }
+    physbsize = (uint) figetbsz_arg;
     a->blocks = (a->size + physbsize - 1) / physbsize;
     crumbsize = (int) ((double) a->size * l->crumbratio);
   }
@@ -236,21 +244,23 @@ get_testimony (struct accused *a, struct law *l)
       {
 	if (INT_MAX == i)
 	  break;		// The file is too large for FIBMAP
-	/* Query the physical pos of the i-nth block */
 	prevphyspos = physpos;
-	physpos = i;
-	if (-1 == ioctl (a->fd, FIBMAP, &physpos))
-	  {
-	    error (0, errno, "%s: FIBMAP failed", a->name);
-	    return -1;
-	  }
-	physpos = physpos * physbsize;
-	/* workaround reiser4 bug fixed 2006-08-27, TODO : remove */
-	if (physpos < 0)
-	  {
-	    error (0, 0, "ReiserFS4 bug : UPDATE to at least 2006-08-27");
-	    physpos = 0;
-	  }
+	/* Query the physical pos of the i-nth block */
+	{
+	  int fibmap_arg = i;
+	  if (-1 == ioctl (a->fd, FIBMAP, &fibmap_arg))
+	    {
+	      error (0, errno, "%s: FIBMAP failed", a->name);
+	      return -1;
+	    }
+	  if (fibmap_arg <= 0)
+	    {
+	      error (0, 0, "%s: FIBMAP() is buggy and returned %i",
+		     a->name, fibmap_arg);
+	      return -1;
+	    }
+	  physpos = (llint) fibmap_arg *(llint) physbsize;
+	}
 	/* physpos == 0 if sparse file */
 	if (physpos)
 	  {
