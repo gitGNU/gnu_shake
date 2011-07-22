@@ -253,7 +253,7 @@ get_testimony (struct accused *a, struct law *l)
 	      error (0, errno, "%s: FIBMAP failed", a->name);
 	      return -1;
 	    }
-	  if (fibmap_arg <= 0)
+	  if (fibmap_arg < 0)
 	    {
 	      error (0, 0, "%s: FIBMAP() is buggy and returned %i",
 		     a->name, fibmap_arg);
